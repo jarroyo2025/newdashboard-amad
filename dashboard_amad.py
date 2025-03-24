@@ -1,29 +1,34 @@
 
+import os
+os.environ["STREAMLIT_WATCHER_TYPE"] = "none"
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
 from io import BytesIO
 from fpdf import FPDF
-from PIL import Image
+from sqlalchemy import create_engine
 
 # -------- CONFIGURACIÓN --------
 st.set_page_config(page_title="Dashboard AMAD", layout="wide")
 logo_path = "logo_s10plus.png"
 
-# -------- CARGA DE DATOS --------
+# -------- CARGA DE DATOS DESDE MARIADB --------
 @st.cache_data
 def cargar_datos():
-    # Este dataframe debe reemplazarse con la conexión real
-    df = pd.read_csv("https://raw.githubusercontent.com/datablist/sample-csv-files/main/files/people/people-100.csv")
-    df["fecha"] = pd.date_range(end=datetime.today(), periods=len(df))
-    df["totaldia"] = pd.Series([i*10 for i in range(len(df))])
-    df["totalaplicacion"] = df["totaldia"] * 0.4
-    df["total_qr"] = df["totaldia"] * 0.3
-    df["totaletiqueta"] = df["totaldia"] * 0.2
-    df["Usuarios Únicos"] = df.index % 50
-    df["hora"] = df["fecha"].dt.hour
-    df["localidad"] = df["Country"]
+    usuario = "spluscom_powerbi"
+    contrasena = "S10Octubre2022"
+    host = "s10plus.com"
+    puerto = "3306"
+    base = "spluscom_db_amad"
+    
+    engine = create_engine(f"mysql+pymysql://{usuario}:{contrasena}@{host}:{puerto}/{base}")
+    query = "SELECT * FROM temporal_amad"
+    df = pd.read_sql(query, engine)
+
+    df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+    df['hora'] = pd.to_datetime(df['hora'], format='%H:%M:%S', errors='coerce').dt.hour
     return df
 
 df = cargar_datos()
@@ -33,7 +38,7 @@ with st.sidebar:
     st.image(logo_path, width=200)
     st.title("Filtros")
     fecha_min, fecha_max = st.date_input("Rango de Fechas", [df["fecha"].min(), df["fecha"].max()])
-    localidades = st.multiselect("Localidad", df["localidad"].unique(), default=list(df["localidad"].unique()))
+    localidades = st.multiselect("Localidad", df["localidad"].dropna().unique(), default=list(df["localidad"].dropna().unique()))
     df_filtrado = df[(df["fecha"] >= pd.to_datetime(fecha_min)) & (df["fecha"] <= pd.to_datetime(fecha_max))]
     df_filtrado = df_filtrado[df_filtrado["localidad"].isin(localidades)]
 
@@ -41,11 +46,11 @@ with st.sidebar:
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("📊 Total Actividad AMAD", int(df_filtrado["totaldia"].sum()))
 col2.metric("📱 Total Aplicación", int(df_filtrado["totalaplicacion"].sum()))
-col3.metric("📷 Total QR", int(df_filtrado["total_qr"].sum()))
+col3.metric("📷 Total QR", int(df_filtrado["totalporconcepto"].sum()))
 col4.metric("💬 Conversaciones", int(df_filtrado["totaletiqueta"].sum()))
-col5.metric("👥 Usuarios Únicos", df_filtrado["Usuarios Únicos"].nunique())
+col5.metric("👥 Usuarios Únicos", df_filtrado["Usuarios Únicos"].nunique() if "Usuarios Únicos" in df_filtrado.columns else "-")
 
-# -------- GRÁFICAS --------
+# -------- GRÁFICA DE HORA --------
 st.markdown("### Actividad por Hora")
 hora_total = df_filtrado["hora"].value_counts().sort_index()
 if not hora_total.empty:
@@ -76,7 +81,8 @@ def exportar_pdf(df):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.image(logo_path, x=10, y=8, w=40)
+    if os.path.exists(logo_path):
+        pdf.image(logo_path, x=10, y=8, w=40)
     pdf.cell(200, 10, txt="Reporte de Actividad AMAD", ln=True, align="C")
     pdf.set_font("Arial", "", 12)
     pdf.ln(20)
@@ -86,9 +92,10 @@ def exportar_pdf(df):
     pdf.set_font("Arial", "B", 12)
     pdf.cell(200, 10, f"Total Actividad: {int(df['totaldia'].sum())}", ln=True)
     pdf.cell(200, 10, f"Total Aplicación: {int(df['totalaplicacion'].sum())}", ln=True)
-    pdf.cell(200, 10, f"Total QR: {int(df['total_qr'].sum())}", ln=True)
+    pdf.cell(200, 10, f"Total QR: {int(df['totalporconcepto'].sum())}", ln=True)
     pdf.cell(200, 10, f"Conversaciones: {int(df['totaletiqueta'].sum())}", ln=True)
-    pdf.cell(200, 10, f"Usuarios Únicos: {df['Usuarios Únicos'].nunique()}", ln=True)
+    if "Usuarios Únicos" in df.columns:
+        pdf.cell(200, 10, f"Usuarios Únicos: {df['Usuarios Únicos'].nunique()}", ln=True)
 
     output = BytesIO()
     pdf.output(output)

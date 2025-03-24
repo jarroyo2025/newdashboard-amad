@@ -3,3 +3,4 @@ pandas
 plotly
 fpdf2==2.7.8
 xlsxwriter
+sqlalchemy

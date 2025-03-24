@@ -73,10 +73,13 @@ if 'Usuarios Únicos' in df_filtrado.columns:
 st.subheader("⏰ Actividad por Hora")
 if 'hora' in df_filtrado.columns:
     hora_total = df_filtrado['hora'].value_counts().sort_index()
-    fig_hora = px.line(x=hora_total.index, y=hora_total.values,
-                       labels={'x': 'Hora del Día', 'y': 'Eventos'},
-                       title="Eventos por Hora")
-    st.plotly_chart(fig_hora, use_container_width=True)
+    if not hora_total.empty:
+        fig_hora = px.line(x=hora_total.index, y=hora_total.values,
+                           labels={'x': 'Hora del Día', 'y': 'Eventos'},
+                           title="Eventos por Hora")
+        st.plotly_chart(fig_hora, use_container_width=True)
+    else:
+        st.warning("⚠️ No hay datos de actividad por hora para los filtros seleccionados.")
 
 st.subheader("📡 Actividad por Origen")
 origen_total = df_filtrado['origen'].value_counts()

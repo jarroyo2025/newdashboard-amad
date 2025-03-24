@@ -34,6 +34,11 @@ def cargar_datos():
         return None
 
 df = cargar_datos()
+
+if df is not None:
+    st.subheader("🧾 Columnas disponibles en la base de datos")
+    st.write(df.columns.tolist())
+
 if df is not None:
     with st.sidebar:
         st.image(logo_path, width=200)

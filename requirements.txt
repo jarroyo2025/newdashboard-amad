@@ -1,5 +1,5 @@
 streamlit
-sqlalchemy
-pymysql
 pandas
 plotly
+fpdf
+xlsxwriter
